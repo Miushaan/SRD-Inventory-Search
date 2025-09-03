@@ -6,29 +6,49 @@
 <title>Product Catalog</title>
 <style>
 :root{--bg:#0f1724;--card:#0b1220;--accent:#06b6d4;--muted:#94a3b8;--glass:rgba(255,255,255,0.08)}
-html,body{height:100%;margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,Arial;color:#e6eef6;font-size:15px;background:linear-gradient(180deg,#021124 0%,#071326 100%);}
+html,body{
+  height:100%;margin:0;
+  font-family:Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,Arial;
+  color:#e6eef6;font-size:15px;
+  background:linear-gradient(180deg,#021124 0%,#071326 100%);
+}
 .wrap{max-width:100%;margin:0 auto;padding:12px}
 h1{text-align:center;font-size:1.2rem;margin:0 0 10px}
 .card{background:var(--card);border-radius:12px;padding:12px;box-shadow:0 3px 12px rgba(0,0,0,0.5);}
 .controls{display:flex;flex-direction:column;gap:10px}
-.btn{background:linear-gradient(90deg,var(--accent),#7dd3fc);border:none;padding:10px;border-radius:10px;color:#021124;font-weight:600;cursor:pointer;font-size:1rem;text-align:center}
+.btn{
+  background:linear-gradient(90deg,var(--accent),#7dd3fc);
+  border:none;padding:10px;border-radius:10px;
+  color:#021124;font-weight:600;cursor:pointer;font-size:1rem;text-align:center
+}
 input[type="file"]{display:none}
 .search{position:relative}
-.search input{width:100%;padding:14px 12px;border-radius:12px;border:1px solid rgba(255,255,255,0.1);background:var(--glass);color:inherit;font-size:1.1rem;}
-.suggestions{position:absolute;top:100%;left:0;right:0;background:var(--card);border-radius:10px;margin-top:4px;box-shadow:0 6px 12px rgba(0,0,0,0.5);max-height:240px;overflow-y:auto;z-index:100}
-.suggestion-item{padding:10px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.05);font-size:1rem}
-.suggestion-item:hover{background:rgba(6,182,212,0.15)}
-.suggestion-qty{float:right;color:var(--muted)}
+.search input{
+  width:100%;padding:14px 12px;border-radius:12px;
+  border:1px solid rgba(255,255,255,0.1);
+  background:var(--glass);color:inherit;font-size:1.1rem;
+}
 .meta{margin-top:10px;color:var(--muted);font-size:0.85rem;text-align:center}
 .table-wrap{margin-top:14px}
-table{width:100%;border-collapse:collapse;font-size:0.9rem}
-th,td{padding:8px 6px;text-align:left;border-bottom:1px solid rgba(255,255,255,0.05)}
-th{color:var(--muted);font-weight:600;position:sticky;top:0;background:var(--card);z-index:1}
+table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:0.9rem}
+th,td{
+  padding:8px 6px;text-align:left;
+  border-bottom:1px solid rgba(255,255,255,0.05);
+  word-wrap:break-word;white-space:normal;
+}
+th{
+  color:var(--muted);font-weight:600;
+  position:sticky;top:0;background:var(--card);z-index:1
+}
 .tag{display:inline-block;padding:4px 8px;border-radius:999px;background:rgba(255,255,255,0.1);font-size:0.8rem;color:var(--muted)}
 .footer{margin:14px 0 0;text-align:center;font-size:0.75rem;color:var(--muted)}
 .zero-qty{color:red;font-weight:600;}
 .paging{margin-top:10px;text-align:center;display:flex;justify-content:center;gap:10px}
-.paging button{padding:6px 12px;border-radius:8px;border:none;background:var(--accent);color:#021124;font-weight:600;cursor:pointer}
+.paging button{
+  padding:6px 12px;border-radius:8px;border:none;
+  background:var(--accent);color:#021124;
+  font-weight:600;cursor:pointer
+}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.6.2/dist/fuse.min.js"></script>
@@ -44,13 +64,12 @@ th{color:var(--muted);font-weight:600;position:sticky;top:0;background:var(--car
       <button id="upload-again" class="btn" style="display:none">Upload Again</button>
       <div class="search">
         <input id="search-box" placeholder="🔍 Search products..." />
-        <div id="suggestions" class="suggestions" style="display:none"></div>
       </div>
     </div>
     <div class="meta" id="file-meta">No file loaded.</div>
     <div class="table-wrap card" style="margin-top:12px;">
       <span class="tag" id="rows-count">0 rows</span>
-      <div style="overflow:auto;max-height:400px;margin-top:10px;">
+      <div style="max-height:400px;margin-top:10px;">
         <table id="data-table"><thead></thead><tbody></tbody></table>
       </div>
     </div>
@@ -69,7 +88,6 @@ const fileInput=document.getElementById('file-input');
 const uploadLabel=document.getElementById('upload-label');
 const uploadAgain=document.getElementById('upload-again');
 const searchBox=document.getElementById('search-box');
-const suggestionsBox=document.getElementById('suggestions');
 const fileMeta=document.getElementById('file-meta');
 const rowsCount=document.getElementById('rows-count');
 const dataTable=document.getElementById('data-table');
@@ -89,8 +107,8 @@ fileInput.addEventListener('change', async ev=>{
   rawData=json.slice(1).map(row=>Object.fromEntries(headers.map((h,i)=>[h,row[i]])));
   fileMeta.textContent=`${f.name} — ${rawData.length} rows`;
   rowsCount.textContent=`${rawData.length} rows`;
-  fuse=new Fuse(rawData,{keys:[headers[1]],threshold:0.4});
-  currentCols=0; renderTable(rawData.slice(0,200));
+  fuse=new Fuse(rawData,{keys:[headers[1]],threshold:0.3,includeScore:true});
+  currentCols=0; renderTable(rawData.slice(0,20));
 
   uploadLabel.style.display='none'; uploadAgain.style.display='block';
 });
@@ -104,24 +122,26 @@ uploadAgain.addEventListener('click',()=>{
 
 searchBox.addEventListener('input',debounce(()=>{
   const q=searchBox.value.trim();
-  let results=q?fuse.search(q,{limit:500}).map(r=>r.item):rawData.slice();
+  if(!q){ renderTable([]); return; }
+  let results=fuse.search(q,{limit:20}).map(r=>r.item);
   results.sort((a,b)=>parseFloat(b[qtyColumn]||0)-parseFloat(a[qtyColumn]||0));
-  renderTable(results.slice(0,200));
+  renderTable(results);
 }));
 
 prevPageBtn.addEventListener('click',()=>{
-  if(currentCols>0){ currentCols-=4; renderTable(rawData.slice(0,200)); updatePaging(); }
+  if(currentCols>0){ currentCols-=4; renderTable(lastResults); updatePaging(); }
 });
 nextPageBtn.addEventListener('click',()=>{
-  if(currentCols+4<headers.length){ currentCols+=4; renderTable(rawData.slice(0,200)); updatePaging(); }
+  if(currentCols+4<headers.length){ currentCols+=4; renderTable(lastResults); updatePaging(); }
 });
 
+let lastResults=[];
 function updatePaging(){
   prevPageBtn.disabled=currentCols===0;
   nextPageBtn.disabled=currentCols+4>=headers.length;
 }
-
 function renderTable(rows){
+  lastResults=rows;
   const thead=dataTable.querySelector('thead'), tbody=dataTable.querySelector('tbody');
   thead.innerHTML=''; tbody.innerHTML='';
   if(!rows||rows.length===0){ thead.innerHTML='<tr><th>No results</th></tr>'; rowsCount.textContent='0 rows'; return; }
