@@ -56,6 +56,7 @@ mark{background:rgba(6,182,212,0.3);color:#fff;border-radius:2px;padding:0 1px}
         <input id="file-input" type="file" accept=".xlsx,.xls,.csv"/>
       </label>
       <button id="upload-again" class="btn" style="display:none">Upload Again</button>
+      <button id="clear-cache" class="btn" style="display:none;background:linear-gradient(90deg,#f87171,#ef4444)">Clear Cache</button>
       <div class="search">
         <input id="search-box" placeholder="🔍 Search products..." />
       </div>
@@ -76,10 +77,27 @@ let rawData=[], headers=[], qtyColumn='Available physical';
 const fileInput=document.getElementById('file-input');
 const uploadLabel=document.getElementById('upload-label');
 const uploadAgain=document.getElementById('upload-again');
+const clearCache=document.getElementById('clear-cache');
 const searchBox=document.getElementById('search-box');
 const fileMeta=document.getElementById('file-meta');
 const rowsCount=document.getElementById('rows-count');
 const dataTable=document.getElementById('data-table');
+
+// Restore saved data on page load
+window.addEventListener("load", ()=>{
+  const saved = localStorage.getItem("catalogData");
+  const savedHeaders = localStorage.getItem("catalogHeaders");
+  const savedName = localStorage.getItem("catalogFileName");
+  if(saved && savedHeaders){
+    rawData = JSON.parse(saved);
+    headers = JSON.parse(savedHeaders);
+    fileMeta.textContent = `Restored: ${savedName||'saved file'} — ${rawData.length} rows`;
+    rowsCount.textContent = `${rawData.length} rows`;
+    uploadLabel.style.display='none';
+    uploadAgain.style.display='block';
+    clearCache.style.display='block';
+  }
+});
 
 fileInput.addEventListener('change', async ev=>{
   const f=ev.target.files[0]; if(!f) return;
@@ -94,15 +112,47 @@ fileInput.addEventListener('change', async ev=>{
   rawData=json.slice(1).map(row=>Object.fromEntries(headers.map((h,i)=>[h,row[i]])));
   fileMeta.textContent=`${f.name} — ${rawData.length} rows`;
   rowsCount.textContent=`${rawData.length} rows`;
+
+  // Save to localStorage
+  localStorage.setItem("catalogData", JSON.stringify(rawData));
+  localStorage.setItem("catalogHeaders", JSON.stringify(headers));
+  localStorage.setItem("catalogFileName", f.name);
+
   renderTable([]); // start empty
-  uploadLabel.style.display='none'; uploadAgain.style.display='block';
+  uploadLabel.style.display='none'; 
+  uploadAgain.style.display='block'; 
+  clearCache.style.display='block';
 });
 
 uploadAgain.addEventListener('click',()=>{
-  fileInput.value=''; uploadLabel.style.display='block'; uploadAgain.style.display='none';
+  fileInput.value='';
+  uploadLabel.style.display='block';
+  uploadAgain.style.display='none';
+  clearCache.style.display='none';
   fileMeta.textContent='No file loaded.'; rowsCount.textContent='0 rows';
-  dataTable.querySelector('thead').innerHTML=''; dataTable.querySelector('tbody').innerHTML='';
+  dataTable.querySelector('thead').innerHTML='';
+  dataTable.querySelector('tbody').innerHTML='';
   rawData=[]; headers=[];
+  // Clear saved
+  localStorage.removeItem("catalogData");
+  localStorage.removeItem("catalogHeaders");
+  localStorage.removeItem("catalogFileName");
+});
+
+clearCache.addEventListener('click',()=>{
+  if(confirm("Are you sure you want to clear saved file data?")){
+    localStorage.removeItem("catalogData");
+    localStorage.removeItem("catalogHeaders");
+    localStorage.removeItem("catalogFileName");
+    uploadLabel.style.display='block';
+    uploadAgain.style.display='none';
+    clearCache.style.display='none';
+    fileMeta.textContent='Cache cleared. No file loaded.'; 
+    rowsCount.textContent='0 rows';
+    dataTable.querySelector('thead').innerHTML='';
+    dataTable.querySelector('tbody').innerHTML='';
+    rawData=[]; headers=[];
+  }
 });
 
 searchBox.addEventListener('input',debounce(()=>{
