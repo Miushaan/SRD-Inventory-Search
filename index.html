@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Product Catalog Search — HTML App</title>
+  <style>
+    :root{--bg:#0f1724;--card:#0b1220;--accent:#06b6d4;--muted:#94a3b8;--glass:rgba(255,255,255,0.04)}
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,#021124 0%, #071326 100%);font-family:Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; color:#e6eef6}
+    .wrap{max-width:1100px;margin:28px auto;padding:20px}
+    h1{margin:0;font-size:1.25rem}
+    .card{background:var(--card);border-radius:12px;padding:14px;box-shadow:0 6px 18px rgba(2,6,23,0.6);}
+    .controls{display:flex;gap:10px;align-items:center;margin-top:12px}
+    input[type="file"]{color:transparent}
+    .btn{background:linear-gradient(90deg,var(--accent),#7dd3fc);border:none;padding:8px 12px;border-radius:8px;color:#021124;font-weight:600;cursor:pointer}
+    .search{flex:1;display:flex;flex-direction:column;gap:8px;position:relative}
+    .search input{flex:1;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.06);background:var(--glass);color:inherit}
+    .suggestions{position:absolute;top:100%;left:0;right:0;background:var(--card);border-radius:10px;margin-top:4px;box-shadow:0 6px 12px rgba(0,0,0,0.4);max-height:200px;overflow-y:auto;z-index:100}
+    .suggestion-item{padding:8px 10px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.05)}
+    .suggestion-item:hover{background:rgba(6,182,212,0.15)}
+    .suggestion-qty{float:right;color:var(--muted)}
+    .meta{margin-top:12px;color:var(--muted);font-size:0.9rem}
+    .table-wrap{margin-top:16px}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:8px 10px;text-align:left;border-bottom:1px solid rgba(255,255,255,0.03);font-size:0.95rem}
+    th{color:var(--muted);font-weight:600}
+    tr.highlight{background:linear-gradient(90deg, rgba(6,182,212,0.06), rgba(125,211,252,0.02))}
+    .tag{display:inline-block;padding:4px 8px;border-radius:999px;background:rgba(255,255,255,0.03);font-size:0.8rem;color:var(--muted)}
+    .footer{margin-top:18px;color:var(--muted);font-size:0.85rem}
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.6.2/dist/fuse.min.js"></script>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Product Catalog Search</h1>
+    <div class="meta">Upload Excel/CSV, then search products instantly (with available qty).</div>
+
+    <div class="card">
+      <div class="controls">
+        <label class="btn">Upload file
+          <input id="file-input" type="file" accept=".xlsx,.xls,.csv" />
+        </label>
+        <div class="search">
+          <input id="search-box" placeholder="Search products..." />
+          <div id="suggestions" class="suggestions" style="display:none"></div>
+        </div>
+      </div>
+
+      <div class="meta" id="file-meta">No file loaded.</div>
+
+      <div class="table-wrap card" style="margin-top:12px;">
+        <span class="tag" id="rows-count">0 rows</span>
+        <div style="overflow:auto;max-height:420px;margin-top:10px;">
+          <table id="data-table"><thead></thead><tbody></tbody></table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+let rawData = [];
+let headers = [];
+let fuse = null;
+const qtyColumn = 'Available physical'; // fixed column name
+const fileInput = document.getElementById('file-input');
+const searchBox = document.getElementById('search-box');
+const suggestionsBox = document.getElementById('suggestions');
+const fileMeta = document.getElementById('file-meta');
+const rowsCount = document.getElementById('rows-count');
+const dataTable = document.getElementById('data-table');
+
+fileInput.addEventListener('change', async (ev)=>{
+  const f = ev.target.files[0];
+  if(!f) return;
+  const buffer = await f.arrayBuffer();
+  const workbook = XLSX.read(buffer, {type:'array'});
+  const sheetName = workbook.SheetNames[0];
+  const worksheet = workbook.Sheets[sheetName];
+  const json = XLSX.utils.sheet_to_json(worksheet, {defval:'', header:1});
+  if(json.length<=1){ fileMeta.textContent='No rows found'; return; }
+
+  headers = json[0];
+  rawData = json.slice(1).map(row => Object.fromEntries(headers.map((h,i)=>[h,row[i]])));
+
+  fileMeta.textContent = `${rawData.length} rows loaded`;
+  rowsCount.textContent = `${rawData.length} rows`;
+  const productHeader = headers[1]; // column B
+  fuse = new Fuse(rawData, {keys:[productHeader], threshold:0.4});
+  renderTable(rawData.slice(0,200));
+});
+
+searchBox.addEventListener('input', ()=>{
+  const q = searchBox.value.trim();
+  if(!q){ suggestionsBox.style.display='none'; renderTable(rawData.slice(0,200)); return; }
+  const productHeader = headers[1]; // column B
+  const results = fuse.search(q, {limit:20});
+  if(results.length===0){ suggestionsBox.style.display='none'; return; }
+  suggestionsBox.innerHTML = results.map(r=>{
+    const name = r.item[productHeader];
+    const qty = r.item[qtyColumn] || 0;
+    return `<div class="suggestion-item" data-name="${escapeHtml(name)}">${escapeHtml(name)} <span class="suggestion-qty">Qty: ${qty}</span></div>`;
+  }).join('');
+  suggestionsBox.style.display='block';
+});
+
+suggestionsBox.addEventListener('click', (e)=>{
+  if(e.target.classList.contains('suggestion-item') || e.target.closest('.suggestion-item')){
+    const div = e.target.closest('.suggestion-item');
+    const name = div.getAttribute('data-name');
+    const productHeader = headers[1]; // column B
+    const match = rawData.filter(r=>String(r[productHeader])===name);
+    renderTable(match);
+    suggestionsBox.style.display='none';
+    searchBox.value = name;
+  }
+});
+
+function renderTable(rows){
+  const thead = dataTable.querySelector('thead');
+  const tbody = dataTable.querySelector('tbody');
+  thead.innerHTML = '';
+  tbody.innerHTML = '';
+  if(!rows || rows.length===0){ thead.innerHTML='<tr><th>No results</th></tr>'; rowsCount.textContent='0 rows'; return; }
+
+  const productHeader = headers[1]; // column B
+  let cols = Object.keys(rows[0]).slice(0,20);
+
+  // Ensure product column is first
+  cols = [productHeader, ...cols.filter(c => c !== productHeader)];
+
+  thead.innerHTML = '<tr>' + cols.map(c=>`<th>${escapeHtml(c)}</th>`).join('') + '</tr>';
+  rows.forEach(r=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = cols.map(c=>`<td>${escapeHtml(String(r[c]||''))}</td>`).join('');
+    tbody.appendChild(tr);
+  });
+  rowsCount.textContent = `${rows.length} rows`;
+}
+
+function escapeHtml(s){ return s.replace(/[&<>"]|'/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;' }[m])) }
+</script>
+</body>
+</html>
