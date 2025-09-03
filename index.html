@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Product Catalog</title>
 
-  <!-- Manifest for Add to Home Screen -->
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0f1724" />
 
@@ -45,6 +44,7 @@
     th{color:var(--muted);font-weight:600;position:sticky;top:0;background:var(--card);z-index:1}
     .tag{display:inline-block;padding:4px 8px;border-radius:999px;background:rgba(255,255,255,0.1);font-size:0.8rem;color:var(--muted)}
     .footer{margin:14px 0 0;text-align:center;font-size:0.75rem;color:var(--muted)}
+    .zero-qty{color:red;font-weight:600;}
   </style>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.6.2/dist/fuse.min.js"></script>
@@ -127,28 +127,24 @@ uploadAgain.addEventListener('click', ()=>{
 
 searchBox.addEventListener('input', debounce(()=>{
   const q = searchBox.value.trim();
-  if(!q){ suggestionsBox.style.display='none'; renderTable(rawData.slice(0,100)); return; }
   const productHeader = headers[1];
-  const results = fuse.search(q, {limit:20});
-  if(results.length===0){ suggestionsBox.style.display='none'; return; }
-  suggestionsBox.innerHTML = results.map(r=>{
-    const name = r.item[productHeader];
-    const qty = r.item[qtyColumn] || 0;
-    return `<div class="suggestion-item" data-name="${escapeHtml(name)}">${highlightMatch(escapeHtml(name), q)} <span class="suggestion-qty">Qty: ${qty}</span></div>`;
-  }).join('');
-  suggestionsBox.style.display='block';
-}));
+  let results = [];
 
-suggestionsBox.addEventListener('click', (e)=>{
-  const div = e.target.closest('.suggestion-item');
-  if(!div) return;
-  const name = div.getAttribute('data-name');
-  const productHeader = headers[1];
-  const match = rawData.filter(r=>String(r[productHeader])===name);
-  renderTable(match);
-  suggestionsBox.style.display='none';
-  searchBox.value = name;
-});
+  if(q){
+    results = fuse.search(q, {limit:500}).map(r=>r.item);
+  } else {
+    results = rawData.slice();
+  }
+
+  // Sort descending by Available physical
+  results.sort((a,b)=>{
+    const valA = parseFloat(a[qtyColumn]) || 0;
+    const valB = parseFloat(b[qtyColumn]) || 0;
+    return valB - valA;
+  });
+
+  renderTable(results.slice(0,200));
+}));
 
 function renderTable(rows){
   const thead = dataTable.querySelector('thead');
@@ -163,27 +159,26 @@ function renderTable(rows){
   if(!cols.includes(qtyColumn)) cols.push(qtyColumn);
 
   thead.innerHTML = '<tr>' + cols.map(c=>`<th>${escapeHtml(c)}</th>`).join('') + '</tr>';
+
   rows.forEach(r=>{
     const tr = document.createElement('tr');
-    tr.innerHTML = cols.map(c=>`<td>${escapeHtml(String(r[c]||''))}</td>`).join('');
+    tr.innerHTML = cols.map(c=>{
+      let val = String(r[c]||'');
+      if(c === qtyColumn && (val === '' || parseFloat(val)===0)){
+        return `<td class="zero-qty">0</td>`; // always show 0 in red if blank or 0
+      } else {
+        return `<td>${escapeHtml(val)}</td>`;
+      }
+    }).join('');
     tbody.appendChild(tr);
   });
   rowsCount.textContent = `${rows.length} rows`;
 }
 
 function escapeHtml(s){ return s.replace(/[&<>"]|'/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;' }[m])) }
-function highlightMatch(text, query){
-  const re = new RegExp(`(${query})`,'gi');
-  return text.replace(re,'<mark>$1</mark>');
-}
-function debounce(fn, delay=200){
-  let t; return (...args)=>{ clearTimeout(t); t=setTimeout(()=>fn(...args),delay); };
-}
+function debounce(fn, delay=200){ let t; return (...args)=>{ clearTimeout(t); t=setTimeout(()=>fn(...args),delay); }; }
 
-// Register service worker for PWA
-if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('sw.js');
-}
+if('serviceWorker' in navigator){ navigator.serviceWorker.register('sw.js'); }
 </script>
 </body>
 </html>
